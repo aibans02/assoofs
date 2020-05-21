@@ -1,0 +1,12 @@
+modules.order
+Module.symvers
+mkassoofs
+assoofs.o
+assoofs.mod.o
+assoofs.mod.c
+assoofs.mod
+assoofs.ko
+.assoofs.o.cmd
+.assoofs.mod.o.cmd
+.assoofs.mod.cmd
+.assoofs.ko.cmd
