@@ -45,13 +45,13 @@ struct assoofs_inode_info *assoofs_get_inode_info(struct super_block *sb, uint64
 ssize_t assoofs_read(struct file *filp, char __user *buf, size_t len, loff_t *ppos)
 {
     printk(KERN_INFO "Read request\n");
-    return 0;
+    return -1;
 }
 
 ssize_t assoofs_write(struct file *filp, const char __user *buf, size_t len, loff_t *ppos)
 {
     printk(KERN_INFO "Write request\n");
-    return 0;
+    return -1;
 }
 
 /*
