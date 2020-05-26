@@ -65,7 +65,37 @@ const struct file_operations assoofs_dir_operations = {
 
 static int assoofs_iterate(struct file *filp, struct dir_context *ctx)
 {
+    struct inode *inode;
+    struct super_block *sb;
+    struct assoofs_inode_info *inode_info;
+    struct buffer_head *bh;
+    struct assoofs_dir_record_entry *record;
+    int i;
+
     printk(KERN_INFO "Iterate request\n");
+
+    if (ctx->pos)
+        return 0;
+
+    inode = filp->f_path.dentry->d_inode;
+    sb = inode->i_sb;
+    inode_info = inode->i_private;
+
+    if ((!S_ISDIR(inode_info->mode)))
+        return -1;
+
+    bh = sb_bread(sb, inode_info->data_block_number);
+    record = (struct assoofs_dir_record_entry *)bh->b_data;
+    for (i = 0; i < inode_info->dir_children_count; i++)
+    {
+        dir_emit(ctx, record->filename, ASSOOFS_FILENAME_MAXLEN, record->inode_no, DT_UNKNOWN);
+        ctx->pos += sizeof(struct assoofs_dir_record_entry);
+        record++;
+    }
+
+    brelse(bh);
+    return 0;
+
     return 0;
 }
 
@@ -202,9 +232,9 @@ static struct inode *assoofs_get_inode(struct super_block *sb, int ino)
 {
     struct inode *inode;
     struct assoofs_inode_info *inode_info;
-    
+
     printk(KERN_INFO "assoofs_get_inode\n");
-    
+
     inode_info = assoofs_get_inode_info(sb, ino);
 
     inode = new_inode(sb);
