@@ -191,6 +191,9 @@ static int assoofs_create(struct inode *dir, struct dentry *dentry, umode_t mode
     inode = new_inode(sb);
     //TODO Comprobacion de si count > ASSOOFS_MAX_FILESYSTEM_OBJECTS_SUPPORTED
     inode->i_ino = (count + 1); // Asigno número al nuevo inodo a partir de count
+    inode->i_sb = sb;
+    inode->i_op = &assoofs_inode_ops;
+    inode->i_atime = inode->i_mtime = inode->i_ctime = current_time(inode);
 
     inode_info = kmalloc(sizeof(struct assoofs_inode_info), GFP_KERNEL);
     inode_info->inode_no = inode->i_ino;
@@ -224,7 +227,73 @@ static int assoofs_create(struct inode *dir, struct dentry *dentry, umode_t mode
 
 static int assoofs_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
 {
+    struct inode *inode;
+    struct buffer_head *bh;
+    uint64_t count;
+    struct assoofs_inode_info *parent_inode_info;
+    struct assoofs_dir_record_entry *dir_contents;
+    struct assoofs_inode_info *inode_info;
+    struct super_block *sb;
+
     printk(KERN_INFO "New directory request\n");
+
+    sb = dir->i_sb;                                                           // obtengo un puntero al superbloque desde dir
+    count = ((struct assoofs_super_block_info *)sb->s_fs_info)->inodes_count; // obtengo el número de inodos de la información persistente del superbloque
+
+    if (count < 0)
+    {
+        return count;
+    }
+
+    if (unlikely(count >= ASSOOFS_MAX_FILESYSTEM_OBJECTS_SUPPORTED))
+    {
+        /* The above condition can be just == insted of the >= */
+        printk(KERN_ERR
+               "Maximum number of objects supported by assoofs is already reached");
+        return -ENOSPC;
+    }
+
+    /* if (!S_ISDIR(mode) && !S_ISREG(mode))
+    {
+        printk(KERN_ERR
+               "Creation request but for neither a file nor a directory");
+        return -EINVAL;
+    } */
+
+    inode = new_inode(sb);
+    //TODO Comprobacion de si count > ASSOOFS_MAX_FILESYSTEM_OBJECTS_SUPPORTED
+    inode->i_ino = (count + 1); // Asigno número al nuevo inodo a partir de count
+    inode->i_sb = sb;
+    inode->i_op = &assoofs_inode_ops;
+    inode->i_atime = inode->i_mtime = inode->i_ctime = current_time(inode);
+
+    inode_info = kmalloc(sizeof(struct assoofs_inode_info), GFP_KERNEL);
+    inode_info->inode_no = inode->i_ino;
+    inode_info->mode = S_IFDIR | mode; // El segundo mode me llega como argumento
+    inode_info->dir_children_count = 0;
+    inode->i_private = inode_info;
+    inode_init_owner(inode, dir, S_IFDIR | mode);
+    d_add(dentry, inode);
+
+    inode->i_fop = &assoofs_dir_operations;
+    assoofs_sb_get_a_freeblock(sb, &inode_info->data_block_number);
+    assoofs_add_inode_info(sb, inode_info);
+
+    parent_inode_info = dir->i_private;
+    bh = sb_bread(sb, parent_inode_info->data_block_number);
+
+    dir_contents = (struct assoofs_dir_record_entry *)bh->b_data;
+    dir_contents += parent_inode_info->dir_children_count;
+    dir_contents->inode_no = inode_info->inode_no; // inode_info es la información persistente del inodo creado en el paso 2.
+
+    strcpy(dir_contents->filename, dentry->d_name.name);
+    mark_buffer_dirty(bh);
+    sync_dirty_buffer(bh);
+    brelse(bh);
+
+    parent_inode_info->dir_children_count++;
+    assoofs_save_inode_info(sb, parent_inode_info);
+
     return 0;
 }
 
