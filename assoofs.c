@@ -11,6 +11,9 @@
  */
 ssize_t assoofs_read(struct file *filp, char __user *buf, size_t len, loff_t *ppos);
 ssize_t assoofs_write(struct file *filp, const char __user *buf, size_t len, loff_t *ppos);
+
+int assoofs_save_inode_info(struct super_block *sb, struct assoofs_inode_info *inode_info);
+
 const struct file_operations assoofs_file_operations = {
     .read = assoofs_read,
     .write = assoofs_write,
@@ -44,14 +47,74 @@ struct assoofs_inode_info *assoofs_get_inode_info(struct super_block *sb, uint64
 
 ssize_t assoofs_read(struct file *filp, char __user *buf, size_t len, loff_t *ppos)
 {
+    struct assoofs_inode_info *inode_info;
+    struct buffer_head *bh;
+    char *buffer;
+    int nbytes;
+
     printk(KERN_INFO "Read request\n");
-    return -1;
+
+    inode_info = filp->f_path.dentry->d_inode->i_private;
+
+    if (*ppos >= inode_info->file_size)
+        return 0;
+
+    bh = sb_bread(filp->f_path.dentry->d_inode->i_sb, inode_info->data_block_number);
+
+    if (!bh)
+    {
+        printk(KERN_ERR "Reading the block number [%llu] failed.",
+               inode_info->data_block_number);
+        return 0;
+    }
+
+    buffer = (char *)bh->b_data;
+    nbytes = min((size_t)inode_info->file_size, len); // Hay que comparar len con el tamano del fichero por si llegamos al final del fichero
+
+    if (copy_to_user(buf, buffer, nbytes))
+    {
+        brelse(bh);
+        printk(KERN_ERR
+               "Error copying file contents to the userspace buffer\n");
+        return -EFAULT;
+    }
+
+    *ppos += nbytes;
+
+    return nbytes;
 }
 
 ssize_t assoofs_write(struct file *filp, const char __user *buf, size_t len, loff_t *ppos)
 {
+
+    struct assoofs_inode_info *inode_info;
+    struct buffer_head *bh;
+    struct super_block *sb;
+    struct assoofs_super_block *assoofs_sb;
+    char *buffer;
+
     printk(KERN_INFO "Write request\n");
-    return -1;
+
+    sb = filp->f_path.dentry->d_inode->i_sb;
+    assoofs_sb = sb->s_fs_info;
+
+    inode_info = filp->f_path.dentry->d_inode->i_private;
+
+    bh = sb_bread(filp->f_path.dentry->d_inode->i_sb, inode_info->data_block_number);
+
+    buffer = (char *)bh->b_data;
+    buffer += *ppos;
+    copy_from_user(buffer, buf, len);
+    *ppos += len;
+
+    mark_buffer_dirty(bh);
+    sync_dirty_buffer(bh);
+    brelse(bh);
+
+    inode_info->file_size = *ppos;
+    assoofs_save_inode_info(sb, inode_info);
+
+    return len;
 }
 
 /*
@@ -94,7 +157,6 @@ static int assoofs_iterate(struct file *filp, struct dir_context *ctx)
     }
 
     brelse(bh);
-    return 0;
 
     return 0;
 }
@@ -110,7 +172,6 @@ static struct inode *assoofs_get_inode(struct super_block *sb, int ino);
 int assoofs_sb_get_a_freeblock(struct super_block *sb, uint64_t *block);
 void assoofs_save_sb_info(struct super_block *vsb);
 void assoofs_add_inode_info(struct super_block *sb, struct assoofs_inode_info *inode);
-int assoofs_save_inode_info(struct super_block *sb, struct assoofs_inode_info *inode_info);
 struct assoofs_inode_info *assoofs_search_inode_info(struct super_block *sb, struct assoofs_inode_info *start, struct assoofs_inode_info *search);
 
 static struct inode_operations assoofs_inode_ops = {
