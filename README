@@ -7,3 +7,8 @@ Partes opcionales
 ------------------------
 - Caché de inodos
 - Uso de semáforos para bloquear recursos compartidos
+
+Adicional
+---------------
+Este proyecto se puede encontrar en https://github.com/aibans02/assoofs
+El primer commit incluye hasta la implementación de la función iterate (no incluida)
