@@ -1,0 +1,9 @@
+ASSOO File System
+
+Armando Ibán Sánchez, Universidad de León. 2020
+
+
+Partes opcionales
+------------------------
+- Caché de inodos
+- Uso de semáforos para bloquear recursos compartidos
