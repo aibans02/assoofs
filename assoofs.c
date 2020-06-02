@@ -6,6 +6,9 @@
 #include <linux/slab.h>        /* kmem_cache            */
 #include "assoofs.h"
 
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("Armando Ibán Sánchez");
+
 static DEFINE_MUTEX(assoofs_sb_lock);
 static DEFINE_MUTEX(assoofs_inodes_lock);
 
